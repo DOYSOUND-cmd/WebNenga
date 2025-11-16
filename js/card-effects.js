@@ -49,21 +49,9 @@ export function initCardEffects({ container, card }) {
     if (document.getElementById('gyro-btn')) return;
     const btn = document.createElement('button');
     btn.id = 'gyro-btn';
+    btn.type = 'button';
     btn.textContent = 'Gyroを有効化';
-    Object.assign(btn.style, {
-      position: 'fixed',
-      right: '12px',
-      bottom: '12px',
-      zIndex: 9999,
-      padding: '10px 14px',
-      borderRadius: '8px',
-      border: '0',
-      fontSize: '14px',
-      background: '#b23a1e',
-      color: '#fff',
-      boxShadow: '0 6px 16px rgba(0,0,0,.25)',
-      cursor: 'pointer'
-    });
+    btn.classList.add('floating-cta', 'floating-cta--right');
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       await enableGyro();

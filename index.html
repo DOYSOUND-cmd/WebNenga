@@ -31,8 +31,15 @@
 
         <img class="stamp" src="./images/kitte.png" alt="切手" />
         <div class="postal-code">〒□□□-□□□□</div>
-        <div class="address">宛名&nbsp;太郎&nbsp;様</div>
-        <div class="sender">DOYSOUND</div>
+        <div class="address">
+          <span class="address-main">宛名&nbsp;太郎&nbsp;様</span>
+          <span class="tap-hint__text" aria-hidden="true">タップして裏面を見る</span>
+          <div class="tap-hint" aria-hidden="true">
+            <span class="tap-hint__circle"></span>
+          </div>
+        </div>
+        <div class="sender">DOYSOUND
+        </div>
       </section>
 
       <!-- 裏：挨拶面 -->
@@ -48,7 +55,7 @@
   </div>
 
   <!-- 編集UI -->
-  <button id="editor-open" aria-label="編集を開く">編集</button>
+  <button id="editor-open" class="floating-cta floating-cta--left" aria-label="編集を開く">編集</button>
   <div id="editor-overlay" aria-hidden="true">
     <div class="editor-panel" role="dialog" aria-modal="true" aria-labelledby="editor-title">
       <div class="editor-header">
@@ -142,8 +149,12 @@
 
           <hr class="sep"/>
 
-          <div class="uploader">
-            <input id="inp-bgfile" type="file" accept="image/*" />
+          <div class="uploader" id="bgfile-uploader">
+            <input id="inp-bgfile" class="uploader-input" type="file" accept="image/*" />
+            <label for="inp-bgfile" class="bgfile-trigger">
+              <img src="./images/noImage.jpeg" alt="背景画像をまだ選択していません" />
+              <span class="bgfile-trigger__text">タップして画像を選択</span>
+            </label>
             <div id="cropper" aria-hidden="true">
               <div class="cropper-wrap">
                 <img id="crop-img" alt="トリミング対象" />

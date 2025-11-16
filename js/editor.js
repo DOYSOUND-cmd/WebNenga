@@ -25,6 +25,7 @@ export function initEditor() {
 
   // ===== DOM =====
   const addrEl   = $('.address');
+  const addrMainEl = $('.address-main');
   const senderEl = $('.sender');
   const msgEl    = $('.greeting-side p');
   const greeting = $('.greeting-side');
@@ -48,6 +49,7 @@ export function initEditor() {
   // 背景：サンプル/アップロード/トリミング
   const sampleGrid   = $('#sample-grid');
   const inpBgFile    = $('#inp-bgfile');
+  const bgUploader   = $('#bgfile-uploader');
   const cropBox      = $('#cropper');
   const cropImg      = $('#crop-img');
   const btnCropReset = $('#btn-crop-reset');
@@ -68,6 +70,12 @@ export function initEditor() {
   const csvSummary  = $('#csv-summary');
   const csvPreview  = $('#csv-preview');
 
+  const updateBgFileVisualState = () => {
+    const hasFile = !!(inpBgFile?.files && inpBgFile.files.length);
+    bgUploader?.classList.toggle('uploader--has-file', hasFile);
+  };
+  updateBgFileVisualState();
+
   // ===== State =====
   // 表示用（Blob可・プレビュー優先）
   let selectedBgUrl = './images/background_sample1.png';
@@ -79,6 +87,8 @@ export function initEditor() {
   let didAutoApply = false;
   let currentTplId  = 'std1';
   let csvOpen = false;
+  let remoteUploadDisabled = false;
+  let uploadFallbackNotified = false;
 
   // ===== 背景反映ヘルパ =====
   function setBackground(displayUrl, stableUrl) {
@@ -143,7 +153,8 @@ export function initEditor() {
 
   // ===== 初期フォームへ流し込み =====
   (function hydrate(){
-    const domAddr = (addrEl.innerText||addrEl.textContent||'').replace(/\u00a0/g,' ').trim();
+    const addrSource = addrMainEl || addrEl;
+    const domAddr = (addrSource?.innerText||addrSource?.textContent||'').replace(/\u00a0/g,' ').trim();
     const {base,honor} = splitHonorific(domAddr);
     inpAddress.value = base; inpHonor.value = honor;
     inpSender.value  = (senderEl.innerText||senderEl.textContent||'').trim();
@@ -166,7 +177,8 @@ export function initEditor() {
     const base = (address||'').trim();
     const suffix = honor || '';
     const final = suffix ? `${base} ${suffix}` : base;
-    addrEl.innerHTML      = escapeHtml(final).replace(/ /g,'&nbsp;');
+    const addrTarget = addrMainEl || addrEl;
+    if (addrTarget) addrTarget.innerHTML = escapeHtml(final).replace(/ /g,'&nbsp;');
     senderEl.textContent  = (sender||'').trim();
     msgEl.innerHTML       = plainToHtml(message||'');
   }
@@ -231,10 +243,11 @@ export function initEditor() {
   // ===== 画像トリミング → プレビュー即時 → バックグラウンドでアップロード（毎回ユニークKey） =====
   function destroyCropper(){ if (cropper){ cropper.destroy(); cropper=null; } }
 
+
   async function processCropAndUpload() {
     if (!cropper) return;
 
-    // ① プレビュー用dataURL（確実に出す）
+    // A. プレビュー用 dataURL を生成
     const cRaw = cropper.getCroppedCanvas({ width: OUT_W, height: OUT_H, imageSmoothingQuality: 'high' });
     const dataURL = encodeImageMax(cRaw, {
       maxKB: 1900, startQ: 0.78, minQ: 0.35, stepQ: 0.06,
@@ -243,24 +256,38 @@ export function initEditor() {
 
     revokeObjUrl();
     currentObjUrl = URL.createObjectURL(dataURLToBlob(dataURL));
-    setBackground(currentObjUrl);  // ここでは共有用URLは更新しない
+    setBackground(currentObjUrl);  // プレビューでは共有用URLは更新しない
 
-    // ② 非同期アップロード（RLSがINSERTのみでもOK: upsert:false & unique key）
+    const applyLocalOnlyBackground = () => {
+      setBackground(currentObjUrl, dataURL);
+      if (!uploadFallbackNotified) {
+        showToast('外部ストレージに接続できないため、画像をデータURLとして共有に埋め込みます。');
+        uploadFallbackNotified = true;
+      }
+    };
+
+    if (remoteUploadDisabled) {
+      applyLocalOnlyBackground();
+      return;
+    }
+
+    // B. Supabase へアップロード（RLS で INSERT のみ可: upsert:false & unique key）
     (async ()=>{
       try {
         const shortId = await hashIdShort(sanitize(inpAddress.value), sanitize(inpSender.value), 10);
         const publicUrl = await uploadBgWebP(dataURL, shortId);
-        // 成功 → 共有URL更新 & プレビューも安定URLへ
+        // 成功 → 公開URL更新 & プレビューも安定URLへ
         setBackground(publicUrl, publicUrl);
-        showToast('背景をアップロードして共有URLを更新しました');
+        showToast('背景をアップロードしてURLを更新しました');
       } catch (err) {
         console.error('Upload failed', err);
-        showToast('背景のアップロードに失敗しました（プレビューは表示中）');
+        remoteUploadDisabled = true;
+        applyLocalOnlyBackground();
       }
     })();
   }
-
   inpBgFile?.addEventListener('change', async ()=>{
+    updateBgFileVisualState();
     let f = inpBgFile.files?.[0]; if(!f) return;
 
     // HEIF → JPEG 変換（必要な場合のみ）
