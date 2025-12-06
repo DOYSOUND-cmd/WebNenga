@@ -41,29 +41,6 @@ function hideTemporarily(selectors) {
   return () => restore.reverse().forEach((r) => r());
 }
 
-function suppressGreetingBackground() {
-  const targets = Array.from(document.querySelectorAll('.greeting-message, .print-greeting-body'));
-  const restore = targets.map((el) => {
-    const prev = {
-      background: el.style.background,
-      boxShadow: el.style.boxShadow,
-      backdropFilter: el.style.backdropFilter,
-      WebkitBackdropFilter: el.style.WebkitBackdropFilter,
-    };
-    el.style.background = 'transparent';
-    el.style.boxShadow = 'none';
-    el.style.backdropFilter = 'none';
-    el.style.WebkitBackdropFilter = 'none';
-    return () => {
-      el.style.background = prev.background;
-      el.style.boxShadow = prev.boxShadow;
-      el.style.backdropFilter = prev.backdropFilter;
-      el.style.WebkitBackdropFilter = prev.WebkitBackdropFilter;
-    };
-  });
-  return () => restore.reverse().forEach((r) => r());
-}
-
 function normalizeGreetingBackground() {
   const targets = Array.from(document.querySelectorAll('.greeting-message, .print-greeting-body'));
   const restore = targets.map((el) => {
@@ -75,8 +52,9 @@ function normalizeGreetingBackground() {
       filter: el.style.filter,
       opacity: el.style.opacity,
     };
-    // 背景は元のまま使うが、余計なフィルタや半透明重ねを避ける
-    el.style.boxShadow = '0 4px 14px rgba(0,0,0,0.12)';
+    // PCで灰色レイヤが乗るのを防ぐため、背景を純白に固定しフィルタ系を無効化
+    el.style.background = '#ffffff';
+    el.style.boxShadow = 'none';
     el.style.backdropFilter = 'none';
     el.style.WebkitBackdropFilter = 'none';
     el.style.filter = 'none';
@@ -93,18 +71,18 @@ function normalizeGreetingBackground() {
   return () => restore.reverse().forEach((r) => r());
 }
 
-// writing-modeを使わず、横書き+<br>で縦並びを作る
+// writing-modeを使わず、横書き+<br>で縦並びを作る。スペースは空行を1つ追加。
 function verticalizeElements(selectors) {
   const targets = selectors.flatMap((s) => Array.from(document.querySelectorAll(s)));
   const restore = [];
   targets.forEach((el) => {
     const originalHTML = el.innerHTML;
-    const text = (el.textContent || '').trim();
+    const text = el.textContent || '';
     const lines = [];
     Array.from(text).forEach((c) => {
       if (c === ' ' || c === '　' || /\s/.test(c)) {
         lines.push('&nbsp;');
-        lines.push('&nbsp;'); // スペースは空行を追加
+        lines.push('&nbsp;'); // 空行
       } else {
         lines.push(c);
       }
@@ -121,8 +99,8 @@ function verticalizeElements(selectors) {
     el.innerHTML = lines.join('<br>');
     el.style.display = 'block';
     el.style.whiteSpace = 'nowrap';
-    el.style.letterSpacing = '-0.06em';
-    el.style.lineHeight = '1.02';
+    el.style.letterSpacing = '-0.1em';
+    el.style.lineHeight = '1.05';
     el.style.textAlign = 'center';
     el.style.writingMode = 'horizontal-tb';
     el.style.textOrientation = 'initial';
@@ -145,10 +123,10 @@ async function captureElement(el, { hideSelectors = [], beforeCapture } = {}) {
   const restoreBefore = beforeCapture ? beforeCapture() : () => {};
 
   const html2canvas = await loadHtml2Canvas();
+  // ハガキ実寸（100x148mm相当）で固定キャプチャし、印刷時の余白をなくす
+  const targetWidth = 600;
+  const targetHeight = 888; // 600 * 1.48
   const scale = Math.min(3, Math.max(1, (window.devicePixelRatio || 1)));
-  const rect = el.getBoundingClientRect();
-  const targetWidth = rect.width || el.offsetWidth || 350;
-  const targetHeight = rect.height || (targetWidth * 1.48);
 
   const run = await withTempStyles(
     [el],
@@ -218,7 +196,6 @@ async function printAsImage(popup) {
   const greetingEl = document.querySelector(GREETING_SELECTOR);
   const addressEl = document.querySelector(ADDRESS_SELECTOR);
   const greetingImg = await captureElement(greetingEl, {
-    // PCで別レイヤーの灰色背景が混ざるのを防ぐため、挨拶文背景はそのまま、余計な重ね効果を無効化
     beforeCapture: () => normalizeGreetingBackground(),
   });
   const addressImg = await captureElement(addressEl, {
